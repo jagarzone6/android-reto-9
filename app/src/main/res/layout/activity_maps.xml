@@ -12,7 +12,9 @@
         android:id="@+id/place_autocomplete_fragment"
         android:name="com.google.android.gms.location.places.ui.PlaceAutocompleteFragment"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        />
+
 
 <fragment xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:map="http://schemas.android.com/apk/res-auto"
@@ -22,5 +24,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_below="@id/place_autocomplete_fragment"  />
+    <Button
+        android:id="@+id/current_loc"
+        style="?android:textAppearanceButton"
+        android:background="@android:color/holo_blue_dark"
+        android:textColor="@android:color/white"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Go back to current location"
+        android:textStyle="bold"
+        android:layout_alignBottom="@+id/map"/>
 
 </RelativeLayout>
