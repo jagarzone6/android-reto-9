@@ -65,10 +65,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Location mLastKnownLocation;
     private List<Place> placesList;
     private Bitmap resizedBitmap;
+    private Bitmap resizedBitmapHospital;
     private RequestQueue requstQueue;
-    private  final String temp = "AIzaSyACOaMdbVu25gJFDBBzaoam4y6abjTFWDE";
-    private  final String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?key="+temp;
-
+    private final String temp = "AIzaSyACOaMdbVu25gJFDBBzaoam4y6abjTFWDE";
+    private final String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?key=" + temp;
 
 
     @Override
@@ -80,8 +80,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         requstQueue = Volley.newRequestQueue(this);
 
 
-        Bitmap imageBitmap = BitmapFactory.decodeResource(getResources(),getResources().getIdentifier("restaurant", "drawable", getPackageName()));
+        Bitmap imageBitmap = BitmapFactory.decodeResource(getResources(), getResources().getIdentifier("restaurant", "drawable", getPackageName()));
+        Bitmap imageBitmapH = BitmapFactory.decodeResource(getResources(), getResources().getIdentifier("hospital", "drawable", getPackageName()));
         resizedBitmap = Bitmap.createScaledBitmap(imageBitmap, 100, 100, false);
+        resizedBitmapHospital = Bitmap.createScaledBitmap(imageBitmapH, 100, 100, false);
         // Construct a PlaceDetectionClient.
         //mPlaceDetectionClient = Places.getPlaceDetectionClient(this, null);
 
@@ -101,7 +103,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override
             public void onPlaceSelected(Place place) {
-                searchNearbyPlacesToGivenLocation(place.getLatLng(),(String) place.getName());
+                searchNearbyPlacesToGivenLocation(place.getLatLng(), (String) place.getName());
             }
 
             @Override
@@ -128,7 +130,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Get the current location of the device and set the position of the map.
         getDeviceLocationNearbyPlaces();
 
-        }
+    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
@@ -146,6 +148,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         updateLocationUI();
     }
+
     private void updateLocationUI() {
         if (mMap == null) {
             return;
@@ -160,7 +163,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 mLastKnownLocation = null;
                 getLocationPermission();
             }
-        } catch (SecurityException e)  {
+        } catch (SecurityException e) {
             Log.e("Exception: %s", e.getMessage());
         }
     }
@@ -179,8 +182,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         if (task.isSuccessful()) {
                             // Set the map's camera position to the current location of the device.
                             mLastKnownLocation = (Location) task.getResult();
-                            LatLng loc = new LatLng(mLastKnownLocation.getLatitude(),mLastKnownLocation.getLongitude());
-                            searchNearbyPlacesToGivenLocation(loc,"My current location");
+                            LatLng loc = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
+                            searchNearbyPlacesToGivenLocation(loc, "My current location");
                         } else {
                             Log.d(TAG, "Current location is null. Using defaults.");
                             Log.e(TAG, "Exception: %s", task.getException());
@@ -190,55 +193,78 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         }
                     }
                 });
-            }else {
+            } else {
                 getLocationPermission();
                 getDeviceLocationNearbyPlaces();
             }
-        } catch(SecurityException e)  {
+        } catch (SecurityException e) {
             Log.e("Exception: %s", e.getMessage());
         }
     }
 
-    private void addPlacesToMap(JSONArray results,LatLng current,String currentName) throws JSONException {
-        mMap.clear();
-        mMap.addMarker(new MarkerOptions().position(current).title(currentName));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(current, 15.0f));
+    private void addPlacesToMap(JSONArray results, LatLng current, String currentName, Boolean hospital) throws JSONException {
+        MarkerOptions mo = new MarkerOptions();
+
+        if(!hospital) {
+            mMap.clear();
+            mMap.addMarker(new MarkerOptions().position(current).title(currentName));
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(current, 15.0f));
+            mo.icon(BitmapDescriptorFactory.fromBitmap(resizedBitmap));
+        } else {
+            mo.icon(BitmapDescriptorFactory.fromBitmap(resizedBitmapHospital));
+        }
 
 
 
-        for(int i = 0;i<results.length();i++){
+        for (int i = 0; i < results.length(); i++) {
             JSONObject place = (JSONObject) results.get(i);
-
-            mMap.addMarker(new MarkerOptions().position(
+            mo.position(
                     new LatLng(
                             place.getJSONObject("geometry").getJSONObject("location").getDouble("lat"),
                             place.getJSONObject("geometry").getJSONObject("location").getDouble("lng")
                     )
-            )
-                    .title(place.getString("name"))
-                    .icon(BitmapDescriptorFactory.fromBitmap(resizedBitmap)));
+            ).title(place.getString("name"));
+
+            mMap.addMarker(mo);
         }
 
 
     }
-    private void searchNearbyPlacesToGivenLocation(final LatLng location, final String name){
-        String req_url = url + "&radius=1500&type=restaurant&location="
-                +location.latitude+","+location.longitude;
+
+    private void searchNearbyPlacesToGivenLocation(final LatLng location, final String name) {
+        String req_url = url + "&radius=2500&type=restaurant&location="
+                + location.latitude + "," + location.longitude;
         getData(req_url, new VolleyCallback() {
             @Override
             public void notifySuccess(JSONObject result) throws JSONException {
                 System.out.println(result.toString());
-                    JSONArray places = result.getJSONArray("results");
-                    addPlacesToMap(places,location,name);
+                JSONArray places = result.getJSONArray("results");
+                addPlacesToMap(places, location, name,false);
+                String req_url2 = url + "&radius=2500&type=hospital&location="
+                        + location.latitude + "," + location.longitude;
+                getData(req_url2, new VolleyCallback() {
+                    @Override
+                    public void notifySuccess(JSONObject result) throws JSONException {
+                        System.out.println(result.toString());
+                        JSONArray places = result.getJSONArray("results");
+                        addPlacesToMap(places, location, name,true);
+                    }
+
+                    @Override
+                    public void notifyError(VolleyError error) {
+                        System.out.println("ERROR: " + error.toString());
+                    }
+                });
             }
 
             @Override
             public void notifyError(VolleyError error) {
-                System.out.println("ERROR: " +error.toString());
+                System.out.println("ERROR: " + error.toString());
             }
         });
     }
+
     private void getLocationPermission() {
         /*
          * Request location permission, so that we can get the location of the
@@ -256,13 +282,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    public void getData(String url, final VolleyCallback mResultCallback){
+    public void getData(String url, final VolleyCallback mResultCallback) {
 
-        JsonObjectRequest jsonobj = new JsonObjectRequest(Request.Method.GET, url,null,
+        JsonObjectRequest jsonobj = new JsonObjectRequest(Request.Method.GET, url, null,
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
-                        if(mResultCallback != null){
+                        if (mResultCallback != null) {
                             try {
                                 mResultCallback.notifySuccess(response);
                             } catch (JSONException e) {
@@ -274,12 +300,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        if(mResultCallback != null){
+                        if (mResultCallback != null) {
                             mResultCallback.notifyError(error);
                         }
                     }
                 }
-        ){
+        ) {
             //here I want to post data to sever
         };
         requstQueue.add(jsonobj);
@@ -288,7 +314,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public interface VolleyCallback {
         void notifySuccess(JSONObject result) throws JSONException;
-        void notifyError (VolleyError error);
+
+        void notifyError(VolleyError error);
     }
 
 }
