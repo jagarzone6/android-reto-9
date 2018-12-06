@@ -1,7 +1,12 @@
 package com.example.jorge.reto9;
 
+import android.Manifest;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.location.Location;
+import android.net.wifi.WifiConfiguration;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
@@ -9,11 +14,27 @@ import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.PlaceLikelihood;
+import com.google.android.gms.location.places.PlaceLikelihoodBufferResponse;
+import com.google.android.gms.location.places.PlaceReport;
+import com.google.android.gms.location.places.Places;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -21,6 +42,13 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.GeoDataClient;
 import com.google.android.gms.location.places.PlaceDetectionClient;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
@@ -35,6 +63,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private boolean mLocationPermissionGranted;
     private Location mLastKnownLocation;
+    private List<Place> placesList;
+    private Bitmap resizedBitmap;
+    private RequestQueue requstQueue;
+    private  final String temp = "AIzaSyACOaMdbVu25gJFDBBzaoam4y6abjTFWDE";
+    private  final String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?key="+temp;
 
 
 
@@ -44,7 +77,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         setContentView(R.layout.activity_maps);
         // Construct a GeoDataClient.
         //mGeoDataClient = Places.getGeoDataClient(this, null);
+        requstQueue = Volley.newRequestQueue(this);
 
+
+        Bitmap imageBitmap = BitmapFactory.decodeResource(getResources(),getResources().getIdentifier("restaurant", "drawable", getPackageName()));
+        resizedBitmap = Bitmap.createScaledBitmap(imageBitmap, 100, 100, false);
         // Construct a PlaceDetectionClient.
         //mPlaceDetectionClient = Places.getPlaceDetectionClient(this, null);
 
@@ -54,6 +91,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        mPlaceDetectionClient = Places.
+                getPlaceDetectionClient(this, null);
+
+        PlaceAutocompleteFragment autocompleteFragment = (PlaceAutocompleteFragment)
+                getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
+
+        autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
+            @Override
+            public void onPlaceSelected(Place place) {
+                searchNearbyPlacesToGivenLocation(place.getLatLng(),(String) place.getName());
+            }
+
+            @Override
+            public void onError(Status status) {
+
+            }
+        });
     }
 
 
@@ -69,13 +124,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-
-        // Add a marker in Sydney and move the camera
-        updateLocationUI();
-
+        getLocationPermission();
         // Get the current location of the device and set the position of the map.
-        getDeviceLocation();
-    }
+        getDeviceLocationNearbyPlaces();
+
+        }
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
@@ -112,7 +165,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    private void getDeviceLocation() {
+    private void getDeviceLocationNearbyPlaces() {
         /*
          * Get the best and most recent location of the device, which may be null in rare
          * cases when a location is not available.
@@ -126,25 +179,66 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         if (task.isSuccessful()) {
                             // Set the map's camera position to the current location of the device.
                             mLastKnownLocation = (Location) task.getResult();
-                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                                    new LatLng(mLastKnownLocation.getLatitude(),
-                                            mLastKnownLocation.getLongitude()), DEFAULT_ZOOM));
-                            mMap.addMarker(new MarkerOptions().position(new LatLng(mLastKnownLocation.getLatitude(),mLastKnownLocation.getLongitude())).title("MY Location"));
-                            //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+                            LatLng loc = new LatLng(mLastKnownLocation.getLatitude(),mLastKnownLocation.getLongitude());
+                            searchNearbyPlacesToGivenLocation(loc,"My current location");
                         } else {
                             Log.d(TAG, "Current location is null. Using defaults.");
                             Log.e(TAG, "Exception: %s", task.getException());
                             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
                             mMap.getUiSettings().setMyLocationButtonEnabled(false);
+
                         }
                     }
                 });
+            }else {
+                getLocationPermission();
+                getDeviceLocationNearbyPlaces();
             }
         } catch(SecurityException e)  {
             Log.e("Exception: %s", e.getMessage());
         }
     }
 
+    private void addPlacesToMap(JSONArray results,LatLng current,String currentName) throws JSONException {
+        mMap.clear();
+        mMap.addMarker(new MarkerOptions().position(current).title(currentName));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(current, 15.0f));
+
+
+
+        for(int i = 0;i<results.length();i++){
+            JSONObject place = (JSONObject) results.get(i);
+
+            mMap.addMarker(new MarkerOptions().position(
+                    new LatLng(
+                            place.getJSONObject("geometry").getJSONObject("location").getDouble("lat"),
+                            place.getJSONObject("geometry").getJSONObject("location").getDouble("lng")
+                    )
+            )
+                    .title(place.getString("name"))
+                    .icon(BitmapDescriptorFactory.fromBitmap(resizedBitmap)));
+        }
+
+
+    }
+    private void searchNearbyPlacesToGivenLocation(final LatLng location, final String name){
+        String req_url = url + "&radius=1500&type=restaurant&location="
+                +location.latitude+","+location.longitude;
+        getData(req_url, new VolleyCallback() {
+            @Override
+            public void notifySuccess(JSONObject result) throws JSONException {
+                System.out.println(result.toString());
+                    JSONArray places = result.getJSONArray("results");
+                    addPlacesToMap(places,location,name);
+            }
+
+            @Override
+            public void notifyError(VolleyError error) {
+                System.out.println("ERROR: " +error.toString());
+            }
+        });
+    }
     private void getLocationPermission() {
         /*
          * Request location permission, so that we can get the location of the
@@ -161,4 +255,40 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
         }
     }
+
+    public void getData(String url, final VolleyCallback mResultCallback){
+
+        JsonObjectRequest jsonobj = new JsonObjectRequest(Request.Method.GET, url,null,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        if(mResultCallback != null){
+                            try {
+                                mResultCallback.notifySuccess(response);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        if(mResultCallback != null){
+                            mResultCallback.notifyError(error);
+                        }
+                    }
+                }
+        ){
+            //here I want to post data to sever
+        };
+        requstQueue.add(jsonobj);
+
+    }
+
+    public interface VolleyCallback {
+        void notifySuccess(JSONObject result) throws JSONException;
+        void notifyError (VolleyError error);
+    }
+
 }
