@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.location.Location;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
@@ -118,8 +119,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 placea = place;
                 status =1;
                 searchNearbyPlacesToGivenLocation(placea.getLatLng(), (String) placea.getName());
-                resetButton.setEnabled(true);
-                resetButton.setActivated(true);
+                resetButton.setClickable(true);
+                resetButton.setBackgroundColor(Color.parseColor("#ff0099cc"));
+
+
             }
 
             @Override
@@ -211,8 +214,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             mLastKnownLocation = (Location) task.getResult();
                             LatLng loc = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
                             searchNearbyPlacesToGivenLocation(loc, "My current location");
-                            resetButton.setEnabled(false);
-                            resetButton.setActivated(false);
+                            resetButton.setClickable(false);
+                            resetButton.setBackgroundColor(Color.GRAY);
                         } else {
                             Log.d(TAG, "Current location is null. Using defaults.");
                             Log.e(TAG, "Exception: %s", task.getException());
